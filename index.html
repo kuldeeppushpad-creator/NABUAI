@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NABU v3.0 – AI Voice Assistant</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="shortcut icon" href="favicon.png" type="image/x-icon">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Poppins',sans-serif}
+body{
+  background:linear-gradient(160deg,#020617,#000814);
+  color:#fff;
+  height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+}
+.app{
+  width:100%;
+  max-width:420px;
+  height:100vh;
+  display:flex;
+  flex-direction:column;
+  padding:18px;
+}
+.status{text-align:center;font-size:14px;opacity:.85}
+.glass{
+  flex:1;
+  margin:15px 0;
+  background:rgba(255,255,255,0.04);
+  backdrop-filter:blur(12px);
+  border-radius:20px;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  box-shadow:0 0 25px rgba(0,255,255,.15);
+}
+.orb{
+  width:170px;height:170px;border-radius:50%;
+  background:radial-gradient(circle,#00f5ff,#0061ff);
+  box-shadow:0 0 40px #00f5ff;
+  animation:idle 3s infinite;
+}
+.orb.thinking{animation:thinking 1.2s infinite}
+.orb.speaking{animation:speaking .5s infinite}
+@keyframes idle{50%{transform:scale(1.05)}}
+@keyframes thinking{50%{box-shadow:0 0 55px #00f5ff}}
+@keyframes speaking{50%{transform:scale(1.12)}}
+.controls{display:flex;justify-content:space-around}
+.btn{
+  border:1px solid #00f5ff;
+  background:transparent;
+  color:#00f5ff;
+  padding:8px 16px;
+  border-radius:25px;
+}
+.mic-wrap{display:flex;justify-content:center;margin-top:15px}
+.mic{
+  width:72px;height:72px;border-radius:50%;
+  border:2px solid #00f5ff;
+  display:flex;justify-content:center;align-items:center;
+  font-size:26px;animation:pulse 2s infinite;
+}
+@keyframes pulse{50%{box-shadow:0 0 30px #00f5ff}}
+</style>
+</head>
+
+<body>
+<div class="app">
+  <div class="status" id="status">NABU is listening…</div>
+
+  <div class="glass">
+    <div class="orb" id="orb"></div>
+  </div>
+
+  <div class="controls">
+    <button class="btn" onclick="toggleVoice()">🔊 Voice</button>
+    <button class="btn" onclick="resetNabu()">♻ Reset</button>
+  </div>
+
+  <div class="mic-wrap">
+    <div class="mic" onclick="manualListen()">
+      <i class="fas fa-microphone"></i>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================= CONFIG ================= */
+const OPENAI_API_KEY = "PASTE_YOUR_API_KEY_HERE"; // 🔑
+/* ========================================== */
+
+let voiceOn = true;
+let reminders = [];
+
+const orb = document.getElementById("orb");
+const statusEl = document.getElementById("status");
+
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const recognition = new SR();
+recognition.lang = "en-IN";
+recognition.continuous = true;
+
+/* ---------- SPEAK ---------- */
+function speak(text){
+  if(!voiceOn) return;
+  orb.className="orb speaking";
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang="en-IN"; u.pitch=1.2; u.rate=1;
+  speechSynthesis.speak(u);
+  u.onend=()=>orb.className="orb";
+}
+
+/* ---------- WAKE WORD LOOP ---------- */
+recognition.onresult = e => {
+  const text = e.results[e.results.length-1][0].transcript.toLowerCase();
+  statusEl.innerText = text;
+
+  if(text.includes("hey nabu") || text.includes("utho nabu")){
+    speak("Haan, bolo 😊");
+    return;
+  }
+
+  if(text.includes("yaad") || text.includes("remind")){
+    setReminder(text);
+    return;
+  }
+
+  processAI(text);
+};
+
+recognition.onend = ()=>recognition.start();
+recognition.start();
+
+/* ---------- MANUAL ---------- */
+function manualListen(){
+  recognition.start();
+}
+
+/* ---------- REMINDER ---------- */
+function setReminder(text){
+  const match = text.match(/(\d+)\s*(baje|am|pm)/);
+  if(!match){
+    speak("Time samajh nahi aaya");
+    return;
+  }
+  const hour = parseInt(match[1]);
+  const now = new Date();
+  const alarm = new Date();
+  alarm.setHours(hour,0,0,0);
+  if(alarm < now) alarm.setDate(alarm.getDate()+1);
+
+  reminders.push({time:alarm,text});
+  speak("Theek hai, main yaad dila dungi 💙");
+}
+
+setInterval(()=>{
+  const now = new Date();
+  reminders = reminders.filter(r=>{
+    if(now >= r.time){
+      speak("Reminder! " + r.text);
+      alert("🔔 Reminder!");
+      return false;
+    }
+    return true;
+  });
+},1000);
+
+/* ---------- CHATGPT ---------- */
+async function processAI(text){
+  if(!OPENAI_API_KEY || OPENAI_API_KEY.includes("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")){
+    fallbackReply();
+    return;
+  }
+  orb.className="orb thinking";
+  try{
+    const res = await fetch("https://api.openai.com/v1/chat/completions",{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "Authorization":"Bearer " + OPENAI_API_KEY
+      },
+      body:JSON.stringify({
+        model:"gpt-3.5-turbo",
+        messages:[{role:"user",content:text}]
+      })
+    });
+    const data = await res.json();
+    speak(data.choices[0].message.content);
+  }catch{
+    fallbackReply();
+  }
+}
+
+function fallbackReply(){
+  const replies=[
+    "Main sun rahi hoon 😊",
+    "Thoda aur batao",
+    "Main madad ke liye yahin hoon"
+  ];
+  speak(replies[Math.floor(Math.random()*replies.length)]);
+}
+
+/* ---------- UTILS ---------- */
+function toggleVoice(){
+  voiceOn=!voiceOn;
+  speak(voiceOn?"Voice on":"Voice off");
+}
+function resetNabu(){
+  reminders=[];
+  speak("Reset ho gaya");
+}
+</script>
+</body>
+</html>
